@@ -30,6 +30,7 @@
 
           pkg-config
           gcc
+          nodejs_25
         ];
 
         buildInputs = runtimeLibs;
