@@ -1,7 +1,7 @@
 import pandas as pd
 import joblib
 
-print("🧪 Loading CarbonTrace ML Engine for Sanity Testing...\n")
+print("🧪 Loading GreenBit ML Engine for Sanity Testing...\n")
 
 # Load the saved model
 try:

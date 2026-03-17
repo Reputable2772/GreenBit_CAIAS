@@ -17,7 +17,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-app = FastAPI(title="CarbonTrace Pro Backend")
+app = FastAPI(title="GreenBit Pro Backend")
 
 # Add CORS Middleware so your frontend can actually talk to it
 app.add_middleware(

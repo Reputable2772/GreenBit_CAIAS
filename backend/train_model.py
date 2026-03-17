@@ -8,7 +8,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import mean_absolute_error, r2_score
 
-print("🚀 Initiating CarbonTrace Prediction Engine Training...")
+print("🚀 Initiating GreenBit Prediction Engine Training...")
 
 # 1. Load the MERGED dataset (NOT the raw Kaggle file)
 try:
