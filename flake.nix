@@ -14,23 +14,29 @@
         stdenv.cc.cc.lib
         zlib
         glibc
+        # openssl # Only if Pydantic needs HTTPS during build
       ];
     in
     {
       devShells.x86_64-linux.default = pkgs.mkShell {
-        nativeBuildInputs =
-          with pkgs;
-          [
-            python315
-            python315Packages.venvShellHook
-            nixfmt
-          ]
-          ++ runtimeLibs;
+        nativeBuildInputs = with pkgs; [
+          python314
+          python314Packages.venvShellHook
+          nixfmt-rfc-style
+
+          # Pydantic
+          rustc
+          cargo
+
+          pkg-config
+          gcc
+        ];
+
+        buildInputs = runtimeLibs;
 
         shellHook = ''
-          export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"          echo "Python environment loaded. libstdc++ is now in LD_LIBRARY_PATH."
+          export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"
 
-          # Optional: Automatically enter your venv if it exists
           if [ -d ".venv" ]; then
             source .venv/bin/activate
           fi
