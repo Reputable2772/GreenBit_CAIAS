@@ -1,0 +1,14 @@
+# --- Web Server & API ---
+fastapi
+uvicorn[standard]
+python-multipart
+
+# --- Authentication & Security ---
+passlib[bcrypt]
+python-jose[cryptography]
+
+# --- Data Science & ML Engine ---
+pandas
+numpy
+scikit-learn
+joblib
