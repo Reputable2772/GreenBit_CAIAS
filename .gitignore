@@ -4,3 +4,5 @@ backend/.env
 backend/*.pkl
 backend/*.csv
 backend/*.db
+frontend/node_modules
+frontend/.env
