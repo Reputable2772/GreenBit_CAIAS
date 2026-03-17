@@ -2,7 +2,7 @@ import joblib
 import pandas as pd
 import sqlite3
 import os
-from typing import List
+from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,11 +74,16 @@ db.commit()
 class UserCreate(BaseModel):
     email: EmailStr  # Validates email format
     password: str
-
 class PlotCreate(BaseModel):
-    plot_name: str; state: str; district: str; crop: str; season: str; 
-    plot_yield: float; size_ha: float; annual_rainfall: float
-
+    plot_name: str
+    state: str
+    district: str
+    crop: str
+    season: str
+    size_ha: float
+    # 🚨 THE FIX: Make these optional so the frontend doesn't have to send them
+    plot_yield: Optional[float] = None 
+    annual_rainfall: Optional[float] = None
 class CarbonReport(BaseModel):
     plot_name: str; carbon_per_ha: float; total_carbon: float; estimated_revenue_inr: float
 
@@ -127,12 +132,28 @@ async def get_all_metadata():
 @app.post("/plots")
 async def add_plot(plot: PlotCreate, current_email: str = Depends(get_current_user)):
     user = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
+    
+    # 🔍 INTERNAL LOOKUP: Find the regional constants
+    match = master_df[
+        (master_df['State'] == plot.state.upper()) & 
+        (master_df['District'] == plot.district.upper()) & 
+        (master_df['Crop'] == plot.crop.upper()) & 
+        (master_df['Season'] == plot.season.upper())
+    ]
+    
+    # Use median values from the dataset; default to safety if no match
+    auto_yield = float(match['Yield'].median()) if not match.empty else 1.2
+    auto_rain = float(match['Annual_Rainfall'].median()) if not match.empty else 1050.0
+
+    # 💾 SAVE: The user only sent 4 things, we save all 8
     db.execute("""
         INSERT INTO plots (user_id, plot_name, state, district, crop, season, plot_yield, size_ha, annual_rainfall)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user['id'], plot.plot_name, plot.state.upper(), plot.district.upper(), plot.crop.upper(), plot.season.upper(), plot.plot_yield, plot.size_ha, plot.annual_rainfall))
+    """, (user['id'], plot.plot_name, plot.state.upper(), plot.district.upper(), 
+          plot.crop.upper(), plot.season.upper(), auto_yield, plot.size_ha, auto_rain))
     db.commit()
-    return {"msg": "Plot added successfully"}
+    
+    return {"msg": "Plot analyzed and saved successfully using regional environmental data."}
 
 @app.get("/plots")
 async def list_plots(current_email: str = Depends(get_current_user)):

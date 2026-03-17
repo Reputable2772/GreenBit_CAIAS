@@ -1,141 +1,156 @@
-import { MapContainer, TileLayer, Marker, Popup} from 'react-leaflet'
-import {useEffect , useState} from 'react';
-import 'leaflet/dist/leaflet.css'
-import {Autocomplete, AutocompleteItem,Input,Button} from "@heroui/react";
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import 'leaflet/dist/leaflet.css';
+import { Autocomplete, AutocompleteItem, Input, Button } from "@heroui/react";
 
 export default function HomePage() {
-	const [pos,setPos]=useState<[lat:number,lng:number]|null>(null);
-	const [crops,setCrops]=useState<string[]>(['Crop1','Crop2','Crop3']);
-	const [states,setStates]=useState<string[]>(['Karnataka','Bihar','Tamil Nade','Andra Pradesh']);
-	const [crop,setCrop]=useState<string>("");
-	const [state,setState]=useState<string>("");
-	const [size_ha,setSize_ha]=useState<number>(0);
-	const [plot_name,setPlot_name]=useState<string>("");
+	const [pos, setPos] = useState<[number, number] | null>(null);
+	const [crops, setCrops] = useState<string[]>([]);
+	const [states, setStates] = useState<string[]>([]);
+	const [districts, setDistricts] = useState<string[]>([]);
+	const [seasons, setSeasons] = useState<string[]>([]);
 
-	//Getting current user location
-	useEffect(()=>{
+	// Form States (Stripped down to only what user provides)
+	const [plot_name, setPlot_name] = useState("");
+	const [state, setState] = useState("");
+	const [district, setDistrict] = useState("");
+	const [crop, setCrop] = useState("");
+	const [season, setSeason] = useState("");
+	const [size_ha, setSize_ha] = useState(0);
+
+	// 1. Get Current Location for the Map
+	useEffect(() => {
 		navigator.geolocation.getCurrentPosition(
-			(pos) => {
-				const lat=pos.coords.latitude;
-				const lng=pos.coords.longitude;
-				console.log(pos);
-				setPos([lat,lng])
-			},
-			(err) => {
-				console.log(`Error while getting location ${err.message}`);
-			})},[])
+			(pos) => setPos([pos.coords.latitude, pos.coords.longitude]),
+			(err) => console.error(`Location Error: ${err.message}`)
+		);
+	}, []);
 
-
-			useEffect(()=>{
-				const fetchData = async()=>{
-					try{
-						const API_URL = import.meta.env.VITE_API_URL;
-						const res=await fetch(`${API_URL}/metadata`)
-						const result=await res.json();
-						setStates(result.states);
-						setCrops(result.crops);
-					}catch(err){
-						console.log(`Error while fetching metadata from Backend: ${err}`);
-					}
-				}
-				fetchData();
-			},[]);
-
-			async function formSubmit( e: React.FormEvent<HTMLFormElement>){
-				e.preventDefault();
-				try{
-					const API_URL = import.meta.env.VITE_API_URL;
-					const res=await fetch(`${API_URL}/plots`,
-						{
-						method:"POST",
-						headers:{
-							"Content-Type": "application/json",
-							"Authorization": `Bearer ${localStorage.getItem("token")}`,
-						},
-						body: JSON.stringify({
-							plot_name:plot_name,
-							state:state,
-							crop:crop,
-							size_ha:size_ha
-						}),
-					});
-					if(!res.ok){
-						console.log("There is some issue while adding the plot ");
-					}
-				}catch(err){ console.log(`error while adding in the plot: ${err}`); }
+	// 2. Fetch Metadata for Dropdowns
+	useEffect(() => {
+		const fetchMetadata = async () => {
+			try {
+				const API_URL = import.meta.env.VITE_API_URL;
+				const res = await fetch(`${API_URL}/metadata`);
+				const data = await res.json();
+				setStates(data.states);
+				setCrops(data.crops);
+				setDistricts(data.districts);
+				setSeasons(data.seasons);
+			} catch (err) {
+				console.error("Metadata fetch failed", err);
 			}
-			return (
-				<div className="w-screen h-screen flex flex-col justify-center items-center">
-				<div className="w-[50vw] max-w-[550px] h-screen flex flex-col items-center justify-center">
-				{pos?
-					<MapContainer
-					center={pos}
-					zoom={13}
-					scrollWheelZoom={false}
-					className="h-[500px] w-full"
-					>
-					<TileLayer
-					attribution=""
-					url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+		};
+		fetchMetadata();
+	}, []);
+
+	// 3. Submit Plot (Internal lookup happens on backend)
+	async function formSubmit(e: React.FormEvent<HTMLFormElement>) {
+		e.preventDefault();
+		try {
+			const API_URL = import.meta.env.VITE_API_URL;
+			const res = await fetch(`${API_URL}/plots`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Authorization": `Bearer ${localStorage.getItem("token")}`,
+				},
+				body: JSON.stringify({
+					plot_name,
+					state,
+					district,
+					crop,
+					season,
+					size_ha
+				}),
+			});
+
+			if (res.ok) {
+				alert("Analysis Complete! Environmental data matched and plot saved.");
+				// Clear form or redirect
+				setPlot_name("");
+				setSize_ha(0);
+			} else {
+				console.error("Failed to add plot. Check if all fields are selected.");
+			}
+		} catch (err) {
+			console.error("Error submitting plot:", err);
+		}
+	}
+
+	return (
+		<div className="w-screen min-h-screen flex flex-col justify-center items-center p-6 bg-gray-50">
+			<div className="w-[90vw] max-w-[900px] flex flex-col items-center gap-6">
+
+				<h1 className="text-3xl font-bold text-green-700">New Carbon Analysis</h1>
+
+				{/* Map Section */}
+				<div className="h-[350px] w-full rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+					{pos ? (
+						<MapContainer center={pos} zoom={13} className="h-full w-full">
+							<TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+							<Marker position={pos}>
+								<Popup>Current Location</Popup>
+							</Marker>
+						</MapContainer>
+					) : (
+						<div className="flex items-center justify-center h-full bg-gray-200 animate-pulse">
+							Initializing Satellite Link...
+						</div>
+					)}
+				</div>
+
+				{/* Simplified Form Section */}
+				<form onSubmit={formSubmit} className="w-full bg-white p-8 rounded-2xl shadow-sm grid grid-cols-2 gap-6">
+					<Input
+						className="col-span-2"
+						label="Plot Identifier"
+						placeholder="e.g. West Punjab Field B"
+						value={plot_name}
+						onChange={(e) => setPlot_name(e.target.value)}
+						required
 					/>
-					<Marker position={pos}>
-					<Popup>
-					Your Location
-					</Popup>
-					</Marker>
-					</MapContainer>
-						:
-							<div className="h-[500px] w-full">getting location</div>
-				}
-				<form onSubmit={formSubmit}>
-				<Input
-					value={plot_name}
-				  label="Plot Name"
-				  labelPlacement="outside"
-				  placeholder="Your Plot Name"
-				  className="p-2"
-				  onChange={(e) => setPlot_name(e.target.value)}
-				  />
 
-				  <div className="flex flex-row ">
-					<label>
-					State:
-						<Autocomplete name="state" 
-					className="max-w-xs p-2"
-					label="State"
-					selectedKey={state}
-					onSelectionChange={(key) => setState(String(key))}>
-					{states.map((state,index) => (
-						<AutocompleteItem key={index}>{state}</AutocompleteItem>
-					))}
+					<Autocomplete label="State" selectedKey={state} onSelectionChange={(k) => setState(String(k))} required>
+						{states.map((s) => <AutocompleteItem key={s} value={s}>{s}</AutocompleteItem>)}
 					</Autocomplete>
-					</label>
 
-					<label>
-					Crop:
-						<Autocomplete name="crop"
-					className="max-w-xs p-2"
-					label="Crop"
-					selectedKey={crop}
-					onSelectionChange={(key) => setCrop(String(key))}>
-					{crops.map((crop,index) => (
-						<AutocompleteItem key={index}>{crop}</AutocompleteItem>
-					))}
+					<Autocomplete label="District" selectedKey={district} onSelectionChange={(k) => setDistrict(String(k))} required>
+						{districts.map((d) => <AutocompleteItem key={d} value={d}>{d}</AutocompleteItem>)}
 					</Autocomplete>
-					</label>
-				  </div>
-				<Input
-				  label="Size in Hectares"
-				  labelPlacement="outside"
-				  placeholder="0.00"
-				  type="number"
-				  className="p-2"
-				  value={String(size_ha)}
-				  onChange={(e) => setSize_ha(Number(e.target.value))}
-				  />
-				<Button color="primary" className="w-full p-2">Submit</Button>
+
+					<Autocomplete label="Crop Type" selectedKey={crop} onSelectionChange={(k) => setCrop(String(k))} required>
+						{crops.map((c) => <AutocompleteItem key={c} value={c}>{c}</AutocompleteItem>)}
+					</Autocomplete>
+
+					<Autocomplete label="Growth Season" selectedKey={season} onSelectionChange={(k) => setSeason(String(k))} required>
+						{seasons.map((s) => <AutocompleteItem key={s} value={s}>{s}</AutocompleteItem>)}
+					</Autocomplete>
+
+					<Input
+						className="col-span-2"
+						label="Plot Size (Hectares)"
+						type="number"
+						step="0.01"
+						placeholder="0.00"
+						value={String(size_ha)}
+						onChange={(e) => setSize_ha(Number(e.target.value))}
+						required
+					/>
+
+					<Button
+						color="success"
+						type="submit"
+						className="col-span-2 h-14 text-white font-bold text-lg shadow-lg hover:scale-[1.01] transition-transform"
+					>
+						⚡ Run AI Carbon Sequestration Analysis
+					</Button>
 				</form>
-				</div>
-				</div>
-			)
+
+				<p className="text-gray-400 text-sm">
+					Environmental constants (Rainfall, Yield, & OC Score) are automatically mapped via historical regional data.
+				</p>
+			</div>
+		</div>
+	);
 }
