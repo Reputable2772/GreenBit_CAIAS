@@ -30,16 +30,18 @@ def clean_for_match(series):
 
 print("🔍 Triaging National Data Coverage...\n")
 
-# 1. Load Crop
+# 1. Load Crop Data
 if not os.path.exists(CROP_FILE):
+    print(f"❌ CRITICAL: {CROP_FILE} not found!")
     states_crop = set()
 else:
     df_crop = pd.read_csv(CROP_FILE)
     crop_state_col = 'State_Name' if 'State_Name' in df_crop.columns else 'State'
     states_crop = set(clean_for_match(df_crop[crop_state_col]).dropna().unique())
 
-# 2. Load Rain (Kaggle)
+# 2. Load Rain Data (Kaggle)
 if not os.path.exists(RAIN_FILE):
+    print(f"❌ CRITICAL: {RAIN_FILE} not found!")
     df_rain_master = None
 else:
     df_rain_master = pd.read_csv(RAIN_FILE)
@@ -50,11 +52,15 @@ else:
 years = [2023, 2024]
 
 for year in years:
-    print(f"{'='*60}")
+    print(f"{'='*65}")
     print(f"🗓️  COVERAGE REPORT FOR YEAR: {year}")
-    print(f"{'='*60}")
+    print(f"{'='*65}")
     
+    # 🕵️ SMART SOIL DISCOVERY
+    # Look for year-specific file first, fallback to master database
     soil_file = os.path.join(DATA_DIR, f"soil_nutrient_database_{year}.csv")
+    if not os.path.exists(soil_file):
+        soil_file = os.path.join(DATA_DIR, "soil_nutrient_database.csv")
     
     # 3. Extract Rain & Soil States
     if df_rain_master is not None:
@@ -81,6 +87,7 @@ for year in years:
         if in_crop and in_rain and in_soil:
             perfect_states.append(state)
         elif not in_crop and not in_rain and not in_soil:
+            # Only report as missing if it's completely absent across all datasets
             missing_states.append(state)
         else:
             partial_states.append({
@@ -91,17 +98,22 @@ for year in years:
             })
 
     # 5. Print Output
-    print(f"✅ PERFECT MATCHES ({len(perfect_states)}/36) - Ready for ML:")
-    print("   " + ", ".join(perfect_states) if perfect_states else "   None")
-    print("\n")
+    print(f"✅ PERFECT MATCHES ({len(perfect_states)}/36):")
+    if perfect_states:
+        # Print in groups of 4 for better readability
+        for i in range(0, len(perfect_states), 4):
+            print("   " + ", ".join(perfect_states[i:i+4]))
+    else:
+        print("   None")
     
-    print(f"❌ COMPLETELY MISSING ({len(missing_states)}/36) - No data in any file:")
-    print("   " + ", ".join(missing_states) if missing_states else "   None")
-    print("\n")
+    if missing_states:
+        print(f"\n❌ COMPLETELY MISSING ({len(missing_states)}/36):")
+        print("   " + ", ".join(missing_states))
     
     if partial_states:
-        print(f"⚠️ PARTIAL DATA ({len(partial_states)}/36) - Missing from at least one:")
+        print(f"\n⚠️  PARTIAL DATA ({len(partial_states)}/36):")
         df_partial = pd.DataFrame(partial_states)
         print("-" * 45)
         print(df_partial.to_string(index=False))
-        print("-" * 45 + "\n")
+        print("-" * 45)
+    print("\n")

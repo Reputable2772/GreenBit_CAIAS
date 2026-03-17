@@ -1,62 +1,56 @@
-import pandas as pd
 import joblib
+import pandas as pd
+import numpy as np
 
-print("🧪 Loading GreenBit ML Engine for Sanity Testing...\n")
+# --- 1. Load the "Engine" ---
+MODEL_PATH = 'carbon_model.pkl'
 
-# Load the saved model
 try:
-    model = joblib.load('carbon_model.pkl')
+    model = joblib.load(MODEL_PATH)
+    print(f"✅ Engine '{MODEL_PATH}' loaded successfully!\n")
 except FileNotFoundError:
-    print("❌ ERROR: 'carbon_model.pkl' not found.")
+    print(f"❌ ERROR: '{MODEL_PATH}' not found. Run train_model.py first.")
     exit()
 
-# Define 3 distinct test scenarios to prove the model adapts to different climates
-scenarios = [
+# --- 2. Define Test Scenarios ---
+# These scenarios test the model's logic across different climates and crops.
+test_scenarios = [
     {
-        "Scenario": "🌾 Punjab Wheat (High Yield, Low Rain)",
-        "State": "PUNJAB",
-        "District": "LUDHIANA",
-        "Crop": "WHEAT",
-        "Season": "RABI",
-        "Yield": 5.2,          # High yield
-        "Annual_Rainfall": 650 # Lower rainfall
+        "Name": "Punjab High-Yield Wheat (Dry)",
+        "Data": {
+            'State': 'PUNJAB', 'District': 'LUDHIANA', 'Crop': 'WHEAT', 
+            'Season': 'RABI', 'Yield': 5.2, 'Annual_Rainfall': 650.0
+        }
     },
     {
-        "Scenario": "🌧️ Assam Rice (Moderate Yield, Massive Rain)",
-        "State": "ASSAM",
-        "District": "DIBRUGARH",
-        "Crop": "RICE",
-        "Season": "KHARIF",
-        "Yield": 3.1,           # Moderate yield
-        "Annual_Rainfall": 2800 # Very high rainfall
+        "Name": "Assam Low-Yield Rice (Tropical/Wet)",
+        "Data": {
+            'State': 'ASSAM', 'District': 'KAMRUP', 'Crop': 'RICE', 
+            'Season': 'KHARIF', 'Yield': 3.1, 'Annual_Rainfall': 2800.0
+        }
     },
     {
-        "Scenario": "🧵 Maharashtra Cotton (Low Yield, Moderate Rain)",
-        "State": "MAHARASHTRA",
-        "District": "NAGPUR",
-        "Crop": "COTTON",
-        "Season": "KHARIF",
-        "Yield": 1.5,           # Lower yield
-        "Annual_Rainfall": 1100 # Moderate rainfall
+        "Name": "Maharashtra Cotton (Semi-Arid)",
+        "Data": {
+            'State': 'MAHARASHTRA', 'District': 'NAGPUR', 'Crop': 'COTTON', 
+            'Season': 'KHARIF', 'Yield': 1.5, 'Annual_Rainfall': 1100.0
+        }
     }
 ]
 
-# Convert scenarios to a Pandas DataFrame
-test_df = pd.DataFrame(scenarios)
+# --- 3. Run Inference ---
+print(f"{'🔍 TEST SCENARIO':<40} | {'🌿 PREDICTED CARBON (Tons/Ha)':<30}")
+print("-" * 75)
 
-# We only pass the features the model was trained on
-features = test_df[['State', 'District', 'Crop', 'Season', 'Yield', 'Annual_Rainfall']]
+for scenario in test_scenarios:
+    # Convert single scenario to a DataFrame (the format the Pipeline expects)
+    input_df = pd.DataFrame([scenario['Data']])
+    
+    # Predict
+    prediction = model.predict(input_df)[0]
+    
+    print(f"{scenario['Name']:<40} | {prediction:>25.4f}")
 
-# Run the predictions
-predictions = model.predict(features)
-
-# Print the results beautifully
-print("📊 --- TEST RESULTS --- 📊\n")
-for i, row in test_df.iterrows():
-    print(f"📍 {row['Scenario']}")
-    print(f"   Inputs: {row['Yield']} Tons/Ha Yield | {row['Annual_Rainfall']}mm Rain")
-    print(f"   🌿 PREDICTED CARBON: {predictions[i]:.4f} Tons/Hectare")
-    print(f"   💰 EST. REVENUE: ₹{predictions[i] * 1200:,.2f} per Hectare")
-    print("-" * 50)
-
-print("\n✅ Testing Complete. If the carbon numbers vary logically based on the inputs, your AI is bulletproof.")
+print("-" * 75)
+print("\n💡 Logic Check: Assam (High Rain) should generally yield higher carbon than Punjab (Dry),")
+print("   unless the Punjab yield is exponentially higher. This proves environmental weighting.")
