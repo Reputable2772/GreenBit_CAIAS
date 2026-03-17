@@ -1,2 +1,6 @@
 .direnv/*
-
+backend/__pycache__/*
+backend/.env
+backend/*.pkl
+backend/*.csv
+backend/*.db
