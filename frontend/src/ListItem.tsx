@@ -1,5 +1,5 @@
 import {Card, CardBody, CardHeader , CardFooter} from "@heroui/react";
-import { Plot } from "./PlotsList.tsx";
+import type{ Plot } from "./PlotsList.tsx";
 import { Link } from "react-router-dom";
 
 export function ListItem(props:Plot){

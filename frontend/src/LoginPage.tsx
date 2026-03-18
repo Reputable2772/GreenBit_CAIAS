@@ -1,4 +1,4 @@
-import { SVGProps, JSX } from "react";
+import type{ SVGProps,JSX } from "react";
 import { Button, Input } from "@heroui/react";
 import { useNavigate } from "react-router-dom";
 

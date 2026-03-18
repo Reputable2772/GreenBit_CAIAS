@@ -113,19 +113,19 @@ export default function HomePage() {
 					/>
 
 					<Autocomplete label="State" selectedKey={state} onSelectionChange={(k) => setState(String(k))} required>
-						{states.map((s) => <AutocompleteItem key={s} value={s}>{s}</AutocompleteItem>)}
+						{states.map((s) => <AutocompleteItem key={s} >{s}</AutocompleteItem>)}
 					</Autocomplete>
 
 					<Autocomplete label="District" selectedKey={district} onSelectionChange={(k) => setDistrict(String(k))} required>
-						{districts.map((d) => <AutocompleteItem key={d} value={d}>{d}</AutocompleteItem>)}
+						{districts.map((d) => <AutocompleteItem key={d} >{d}</AutocompleteItem>)}
 					</Autocomplete>
 
 					<Autocomplete label="Crop Type" selectedKey={crop} onSelectionChange={(k) => setCrop(String(k))} required>
-						{crops.map((c) => <AutocompleteItem key={c} value={c}>{c}</AutocompleteItem>)}
+						{crops.map((c) => <AutocompleteItem key={c} >{c}</AutocompleteItem>)}
 					</Autocomplete>
 
 					<Autocomplete label="Growth Season" selectedKey={season} onSelectionChange={(k) => setSeason(String(k))} required>
-						{seasons.map((s) => <AutocompleteItem key={s} value={s}>{s}</AutocompleteItem>)}
+						{seasons.map((s) => <AutocompleteItem key={s} >{s}</AutocompleteItem>)}
 					</Autocomplete>
 
 					<Input
