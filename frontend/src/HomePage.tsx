@@ -2,6 +2,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { Autocomplete, AutocompleteItem, Input, Button } from "@heroui/react";
+import { Link } from "react-router-dom";
 
 export default function HomePage() {
 	const [pos, setPos] = useState<[number, number] | null>(null);
@@ -79,8 +80,8 @@ export default function HomePage() {
 	}
 
 	return (
-		<div className="w-screen min-h-screen flex flex-col justify-center items-center p-6 bg-gray-50">
-			<div className="w-[90vw] max-w-[900px] flex flex-col items-center gap-6">
+<div className="w-full h-full flex flex-col items-center p-6 bg-gray-50 overflow-y-auto">
+<div className="w-[90vw] max-w-[900px] flex flex-col items-center gap-6 pb-10">
 
 				<h1 className="text-3xl font-bold text-green-700">New Carbon Analysis</h1>
 
@@ -146,10 +147,11 @@ export default function HomePage() {
 						⚡ Run AI Carbon Sequestration Analysis
 					</Button>
 				</form>
-
-				<p className="text-gray-400 text-sm">
-					Environmental constants (Rainfall, Yield, & OC Score) are automatically mapped via historical regional data.
-				</p>
+				<Link to="/plots" className="w-full">
+				<Button color="primary" variant="faded" className="w-full">
+				View All Plots
+				</Button>
+				</Link>
 			</div>
 		</div>
 	);

@@ -1,5 +1,6 @@
 import { SVGProps, JSX } from "react";
 import { Button, Input } from "@heroui/react";
+import { useNavigate } from "react-router-dom";
 
 export const MailIcon = (props: SVGProps<SVGSVGElement>) => {
 	return (
@@ -10,6 +11,7 @@ export const MailIcon = (props: SVGProps<SVGSVGElement>) => {
 };
 
 export default function LoginPage(): JSX.Element {
+	const navigate = useNavigate();
 	async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 		try {
@@ -36,7 +38,7 @@ export default function LoginPage(): JSX.Element {
 				if (data.access_token) {
 					localStorage.setItem("token", data.access_token);
 					console.log("Login successful!");
-					// Redirect logic here, e.g., window.location.href = "/dashboard";
+					navigate("/home");
 				} else {
 					console.log("Token missing in response");
 				}
