@@ -1,0 +1,23 @@
+services:
+  backend:
+    name: greenbit-backend
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/carbon_vault.db:/app/carbon_vault.db
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  frontend:
+    name: greenbit-frontend
+    build: 
+      context: ./frontend
+      args:
+        - VITE_API_URL=http://greenbit-backend:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: always
