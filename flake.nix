@@ -20,9 +20,9 @@
     {
       devShells.x86_64-linux.default = pkgs.mkShell {
         nativeBuildInputs = with pkgs; [
-          python314
-          python314Packages.venvShellHook
-          nixfmt-rfc-style
+          python312
+          python312Packages.venvShellHook
+          nixfmt
 
           # Pydantic
           rustc
