@@ -92,7 +92,7 @@ export default function PlotDetails() {
 
       <div className="w-full max-w-[700px]">
         <Link to="/plots" className="text-emerald-700 hover:text-emerald-900 font-bold text-sm bg-white/40 px-4 py-2 rounded-full shadow-sm">
-          ← Back to Inventory
+          ← Back to all Plots 
         </Link>
       </div>
 
