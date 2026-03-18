@@ -13,5 +13,6 @@ joblib==1.5.3
 # Auth & Security
 pydantic[email]==2.12.5
 python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4
+# passlib[bcrypt]==1.7.4
+pwdlib[bcrypt]
 python-dotenv==1.2.2

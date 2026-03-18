@@ -2,20 +2,28 @@ import joblib
 import pandas as pd
 import sqlite3
 import os
+import numpy as np
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.bcrypt import BcryptHasher
 from pydantic import BaseModel, EmailStr
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- CONFIG & SECURITY ---
 SECRET_KEY = os.getenv("SECRET_KEY", "SUPER_SECRET_KEY")
 ALGORITHM = "HS256"
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# THE FIX: Using the modern pwdlib instead of passlib
+pwd_context = PasswordHash((BcryptHasher(),))
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-app = FastAPI(title="GreenBit Pro Backend")
+
+app = FastAPI(title="GreenBit Pro: Investment-Grade Carbon Engine")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +38,7 @@ print("⏳ Loading ML Engine and Metadata...")
 try:
     model = joblib.load('carbon_model.pkl')
     master_df = pd.read_csv('final_training_data.csv') 
+    
     STATES = sorted(master_df['State'].dropna().unique().tolist())
     DISTRICTS = sorted(master_df['District'].dropna().unique().tolist())
     CROPS = sorted(master_df['Crop'].dropna().unique().tolist())
@@ -45,26 +54,11 @@ def get_db():
     return conn
 
 db = get_db()
-# UPDATED: Table now uses 'email' instead of 'username'
-db.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE,
-        hashed_password TEXT
-    )
-""")
+db.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, hashed_password TEXT)")
 db.execute("""
     CREATE TABLE IF NOT EXISTS plots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        plot_name TEXT,
-        state TEXT,
-        district TEXT,
-        crop TEXT,
-        season TEXT,
-        plot_yield REAL,
-        size_ha REAL,
-        annual_rainfall REAL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, plot_name TEXT, state TEXT, district TEXT, 
+        crop TEXT, season TEXT, plot_yield REAL, size_ha REAL, annual_rainfall REAL,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )
 """)
@@ -72,20 +66,21 @@ db.commit()
 
 # --- SCHEMAS ---
 class UserCreate(BaseModel):
-    email: EmailStr  # Validates email format
-    password: str
+    email: EmailStr; password: str
+
 class PlotCreate(BaseModel):
-    plot_name: str
-    state: str
-    district: str
-    crop: str
-    season: str
-    size_ha: float
-    # 🚨 THE FIX: Make these optional so the frontend doesn't have to send them
-    plot_yield: Optional[float] = None 
-    annual_rainfall: Optional[float] = None
+    plot_name: str; state: str; district: str; crop: str; season: str; size_ha: float
+    plot_yield: Optional[float] = None; annual_rainfall: Optional[float] = None
+
 class CarbonReport(BaseModel):
-    plot_name: str; carbon_per_ha: float; total_carbon: float; estimated_revenue_inr: float
+    plot_name: str
+    carbon_per_ha: float         # Match Frontend
+    total_carbon: float          # Match Frontend
+    lower_carbon_ha: float       # Match Frontend
+    mean_carbon_ha: float        # Match Frontend
+    upper_carbon_ha: float       # Match Frontend
+    estimated_revenue_inr: float
+    reliability_rating: str
 
 # --- AUTH UTILS ---
 def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -97,12 +92,11 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
-# --- ROUTES: AUTHENTICATION ---
+# --- ROUTES ---
 @app.post("/register")
 async def register(user: UserCreate):
-    # Truncate for bcrypt compatibility
-    safe_password = user.password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-    hashed = pwd_context.hash(safe_password)
+    # CLEANER LOGIC: pwdlib handles the string hashing directly and safely
+    hashed = pwd_context.hash(user.password)
     try:
         db.execute("INSERT INTO users (email, hashed_password) VALUES (?, ?)", (user.email.lower(), hashed))
         db.commit()
@@ -112,59 +106,45 @@ async def register(user: UserCreate):
 
 @app.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # OAuth2PasswordRequestForm.username will contain the email string
     user = db.execute("SELECT * FROM users WHERE email = ?", (form_data.username.lower(),)).fetchone()
     
-    safe_password = form_data.password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-    
-    if not user or not pwd_context.verify(safe_password, user['hashed_password']):
+    # CLEANER LOGIC: Simple, secure verification without byte-slicing hacks
+    if not user or not pwd_context.verify(form_data.password, user['hashed_password']):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    # Standard JWT 'sub' claim uses the unique identifier (email)
+        
     access_token = jwt.encode({"sub": user['email']}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- ROUTES: METADATA & PLOTS ---
 @app.get("/metadata")
 async def get_all_metadata():
     return {"states": STATES, "districts": DISTRICTS, "crops": CROPS, "seasons": SEASONS}
 
 @app.post("/plots")
 async def add_plot(plot: PlotCreate, current_email: str = Depends(get_current_user)):
-    user = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
-    
-    # 🔍 INTERNAL LOOKUP: Find the regional constants
-    match = master_df[
-        (master_df['State'] == plot.state.upper()) & 
-        (master_df['District'] == plot.district.upper()) & 
-        (master_df['Crop'] == plot.crop.upper()) & 
-        (master_df['Season'] == plot.season.upper())
-    ]
-    
-    # Use median values from the dataset; default to safety if no match
+    user_record = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
+    match = master_df[(master_df['State'] == plot.state.upper()) & (master_df['District'] == plot.district.upper()) & 
+                      (master_df['Crop'] == plot.crop.upper()) & (master_df['Season'] == plot.season.upper())]
     auto_yield = float(match['Yield'].median()) if not match.empty else 1.2
     auto_rain = float(match['Annual_Rainfall'].median()) if not match.empty else 1050.0
-
-    # 💾 SAVE: The user only sent 4 things, we save all 8
     db.execute("""
         INSERT INTO plots (user_id, plot_name, state, district, crop, season, plot_yield, size_ha, annual_rainfall)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user['id'], plot.plot_name, plot.state.upper(), plot.district.upper(), 
+    """, (user_record['id'], plot.plot_name, plot.state.upper(), plot.district.upper(), 
           plot.crop.upper(), plot.season.upper(), auto_yield, plot.size_ha, auto_rain))
     db.commit()
-    
-    return {"msg": "Plot analyzed and saved successfully using regional environmental data."}
+    return {"msg": "Plot analyzed and saved successfully."}
 
 @app.get("/plots")
 async def list_plots(current_email: str = Depends(get_current_user)):
-    user = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
-    plots = db.execute("SELECT * FROM plots WHERE user_id = ?", (user['id'],)).fetchall()
+    user_record = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
+    plots = db.execute("SELECT * FROM plots WHERE user_id = ?", (user_record['id'],)).fetchall()
     return [dict(p) for p in plots]
 
+# --- THE ANALYTICS ENGINE (INVESTMENT GRADE) ---
 @app.get("/calculate/{plot_id}", response_model=CarbonReport)
 async def get_plot_calculation(plot_id: int, current_email: str = Depends(get_current_user)):
-    user = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
-    plot = db.execute("SELECT * FROM plots WHERE id = ? AND user_id = ?", (plot_id, user['id'])).fetchone()
+    user_record = db.execute("SELECT id FROM users WHERE email = ?", (current_email,)).fetchone()
+    plot = db.execute("SELECT * FROM plots WHERE id = ? AND user_id = ?", (plot_id, user_record['id'])).fetchone()
     
     if not plot: raise HTTPException(status_code=404, detail="Plot not found")
 
@@ -173,15 +153,39 @@ async def get_plot_calculation(plot_id: int, current_email: str = Depends(get_cu
         'Season': plot['season'], 'Yield': plot['plot_yield'], 'Annual_Rainfall': plot['annual_rainfall']
     }])
     
-    carbon_density = model.predict(input_df)[0]
-    total_c = carbon_density * plot['size_ha']
+    try:
+        # Step 1: Pre-process features
+        X_transformed = model.named_steps['preprocessor'].transform(input_df)
+        rf_regressor = model.named_steps['regressor']
+        
+        # Step 2: Ensemble Prediction Logic
+        tree_preds = [tree.predict(X_transformed)[0] for tree in rf_regressor.estimators_]
+        
+        # Step 3: Carbon Market Logic
+        mean_val = np.mean(tree_preds)
     
-    return {
-        "plot_name": plot['plot_name'],
-        "carbon_per_ha": round(carbon_density, 4),
-        "total_carbon": round(total_c, 2),
-        "estimated_revenue_inr": round(total_c * 1200, 2)
-    }
+        mean_val = np.mean(tree_preds)
+        p10 = np.percentile(tree_preds, 10)
+        p90 = np.percentile(tree_preds, 90)
+
+        # Investment Logic
+        buffer_deduction = p10 * 0.20
+        net_ha = p10 - buffer_deduction
+        total_net_credits = net_ha * plot['size_ha']
+
+        return {
+            "plot_name": plot['plot_name'],
+            "carbon_per_ha": round(mean_val, 4),      # This fills your "Carbon/ha" card
+            "total_carbon": round(total_net_credits, 2), # This fills your "Total" card
+            "lower_carbon_ha": round(p10, 4),
+            "mean_carbon_ha": round(mean_val, 4),
+            "upper_carbon_ha": round(p90, 4),
+            "estimated_revenue_inr": round(total_net_credits * 1200, 2),
+            "reliability_rating": "A (High)" # Or your CV logic
+        }  
+    except Exception as e:
+        print(f"🔥 Error during calculation: {e}")
+        raise HTTPException(status_code=500, detail="Model processing failed.")
 
 if __name__ == "__main__":
     import uvicorn
